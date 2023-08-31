@@ -97,7 +97,7 @@ def se3_exp_map(log_transform: torch.Tensor, eps: float = 1e-4) -> torch.Tensor:
 
 
 def se3_log_map(
-    transform: torch.Tensor, eps: float = 1e-4, cos_bound: float = 1e-4
+    transform: torch.Tensor
 ) -> torch.Tensor:
     """
     Convert a batch of 4x4 transformation matrices `transform`
@@ -132,17 +132,8 @@ def se3_log_map(
     se3_exp_map(se3_log_map(transform)) == transform
     ```
 
-    The conversion has a singularity around `(transform=I)` which is handled
-    by clamping controlled with the `eps` and `cos_bound` arguments.
-
     Args:
         transform: batch of SE(3) matrices of shape `(minibatch, 4, 4)`.
-        eps: A threshold for clipping the squared norm of the rotation logarithm
-            to avoid division by zero in the singular case.
-        cos_bound: Clamps the cosine of the rotation angle to
-            [-1 + cos_bound, 3 - cos_bound] to avoid non-finite outputs.
-            The non-finite outputs can be caused by passing small rotation angles
-            to the `acos` function in `so3_rotation_angle` of `so3_log_map`.
 
     Returns:
         Batch of logarithms of input SE(3) matrices
@@ -166,13 +157,11 @@ def se3_log_map(
     if not torch.allclose(transform[:, :3, 3], torch.zeros_like(transform[:, :3, 3])):
         raise ValueError("All elements of `transform[:, :3, 3]` should be 0.")
 
-    # log_rot is just so3_log_map of the upper left 3x3 block
-    R = transform[:, :3, :3].permute(0, 2, 1)
-    log_rotation = so3_log_map(R, eps=eps, cos_bound=cos_bound)
+    log_rotation = so3_log_map(transform[:, :3, :3])
 
     # log_translation is V^-1 @ T
     T = transform[:, 3, :3]
-    V = _se3_V_matrix(*_get_se3_V_input(log_rotation), eps=eps)
+    V = _se3_V_matrix(*_get_se3_V_input(log_rotation))
     log_translation = torch.linalg.solve(V, T[:, :, None])[:, :, 0]
 
     return torch.cat((log_translation, log_rotation), dim=1)
@@ -183,7 +172,6 @@ def _se3_V_matrix(
     log_rotation_hat: torch.Tensor,
     log_rotation_hat_square: torch.Tensor,
     rotation_angles: torch.Tensor,
-    eps: float = 1e-4,
 ) -> torch.Tensor:
     """
     A helper function that computes the "V" matrix from [1], Sec 9.4.2.
@@ -192,7 +180,7 @@ def _se3_V_matrix(
 
     V = (
         torch.eye(3, dtype=log_rotation.dtype, device=log_rotation.device)[None]
-        + log_rotation_hat
+        + log_rotation_hat 
         # pyre-fixme[58]: `**` is not supported for operand types `Tensor` and `int`.
         * ((1 - torch.cos(rotation_angles)) / (rotation_angles**2))[:, None, None]
         + (

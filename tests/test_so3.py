@@ -155,7 +155,7 @@ class TestSO3(TestCaseMixin, unittest.TestCase):
         r = torch.stack(r)
         r.requires_grad = True
         # the log of the rotation matrix r
-        r_log = so3_log_map(r, cos_bound=1e-4, eps=1e-2)
+        r_log = so3_log_map(r)
         # tests whether all outputs are finite
         self.assertTrue(torch.isfinite(r_log).all())
         # tests whether the gradient is not None and all finite
@@ -177,8 +177,8 @@ class TestSO3(TestCaseMixin, unittest.TestCase):
         # check also the singular cases where rot. angle = {0, 2pi}
         log_rot[:2] = 0
         log_rot[1, 0] = 2.0 * math.pi - 1e-6
-        rot = so3_exp_map(log_rot, eps=1e-4)
-        rot_ = so3_exp_map(so3_log_map(rot, eps=1e-4, cos_bound=1e-6), eps=1e-6)
+        rot = so3_exp_map(log_rot)
+        rot_ = so3_exp_map(so3_log_map(rot), eps=1e-6)
         self.assertClose(rot, rot_, atol=0.01)
         angles = so3_relative_angle(rot, rot_, cos_bound=1e-6)
         self.assertClose(angles, torch.zeros_like(angles), atol=0.01)
@@ -202,7 +202,7 @@ class TestSO3(TestCaseMixin, unittest.TestCase):
         rot = TestSO3.init_rot(batch_size=batch_size)
         non_singular = (so3_rotation_angle(rot) - math.pi).abs() > 1e-2
         rot = rot[non_singular]
-        rot_ = so3_exp_map(so3_log_map(rot, eps=1e-8, cos_bound=1e-8), eps=1e-8)
+        rot_ = so3_exp_map(so3_log_map(rot), eps=1e-8)
         self.assertClose(rot_, rot, atol=0.1)
         angles = so3_relative_angle(rot, rot_, cos_bound=1e-4)
         self.assertClose(angles, torch.zeros_like(angles), atol=0.1)
