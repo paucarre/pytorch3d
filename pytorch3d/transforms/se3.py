@@ -80,8 +80,7 @@ def se3_exp_map(log_transform: torch.Tensor, eps: float = 1e-4) -> torch.Tensor:
         log_rotation,
         log_rotation_hat,
         log_rotation_hat_square,
-        rotation_angles,
-        eps=eps,
+        rotation_angles
     )
     T = torch.bmm(V, log_translation[:, :, None])[:, :, 0]
 
